@@ -31,7 +31,7 @@ from absl import flags
 import tensorflow.compat.v2 as tf
 from object_detection import model_lib_v2
 
-# Must be added to help deal with low GPU memory
+########
 from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
 
@@ -42,7 +42,7 @@ session = InteractiveSession(config=config)
 
 flags.DEFINE_string('pipeline_config_path', None, 'Path to pipeline config '
                     'file.')
-flags.DEFINE_integer('num_train_steps', 200000, 'Number of train steps.')
+flags.DEFINE_integer('num_train_steps', None, 'Number of train steps.')
 flags.DEFINE_bool('eval_on_train_data', False, 'Enable evaluating on train '
                   'data (only supported in distributed training).')
 flags.DEFINE_integer('sample_1_of_n_eval_examples', None, 'Will sample one of '
@@ -51,9 +51,6 @@ flags.DEFINE_integer('sample_1_of_n_eval_on_train_examples', 5, 'Will sample '
                      'one of every n train input examples for evaluation, '
                      'where n is provided. This is only used if '
                      '`eval_training_data` is True.')
-flags.DEFINE_integer('epoch_steps', 10000, 'Number of steps per epoch, '
-                     'where after each epoch, an evaluation step will be performed.')
-flags.DEFINE_integer('cur_epoch', 0, 'Current epoch.')
 flags.DEFINE_string(
     'model_dir', None, 'Path to output model directory '
                        'where event and checkpoint files will be written.')
@@ -112,26 +109,14 @@ def main(unused_argv):
     else:
       strategy = tf.compat.v2.distribute.MirroredStrategy()
 
-    for i in range((FLAGS.cur_epoch+1) * FLAGS.epoch_steps, FLAGS.num_train_steps, FLAGS.epoch_steps):
-      print("Current Epoch:", i / FLAGS.epoch_steps)
-      with strategy.scope():
-        model_lib_v2.train_loop(
-            pipeline_config_path=FLAGS.pipeline_config_path,
-            model_dir=FLAGS.model_dir,
-            train_steps=i,
-            use_tpu=FLAGS.use_tpu,
-            checkpoint_every_n=FLAGS.checkpoint_every_n,
-            record_summaries=FLAGS.record_summaries)
-
-      model_lib_v2.eval_continuously(
+    with strategy.scope():
+      model_lib_v2.train_loop(
           pipeline_config_path=FLAGS.pipeline_config_path,
           model_dir=FLAGS.model_dir,
-          train_steps=None,
-          sample_1_of_n_eval_examples=FLAGS.sample_1_of_n_eval_examples,
-          sample_1_of_n_eval_on_train_examples=(
-              FLAGS.sample_1_of_n_eval_on_train_examples),
-          checkpoint_dir=FLAGS.model_dir,
-          wait_interval=300, timeout=0)
+          train_steps=FLAGS.num_train_steps,
+          use_tpu=FLAGS.use_tpu,
+          checkpoint_every_n=FLAGS.checkpoint_every_n,
+          record_summaries=FLAGS.record_summaries)
 
 if __name__ == '__main__':
   tf.compat.v1.app.run()
